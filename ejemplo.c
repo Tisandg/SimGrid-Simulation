@@ -66,13 +66,15 @@ static int sort_function(const void *e1, const void *e2)
 // Client function: genera las peticiones
 int client(int argc, char *argv[])
 {
-  	double task_comp_size = 0;
-  	double task_comm_size = 0;
-  	char sprintf_buffer[64];
-  	char mailbox[256];
-  	msg_task_t task = NULL;
-  	struct ClientRequest *req ;
-  	double t_arrival;
+	//size of the computation
+	double task_comp_size = 0;
+
+	double task_comm_size = 0;
+	char sprintf_buffer[64];
+	char mailbox[256];
+	msg_task_t task = NULL;
+	struct ClientRequest *req ;
+	double t_arrival;
 	int my_c;
 	double t;
 	int k;
@@ -82,33 +84,36 @@ int client(int argc, char *argv[])
 
 	for (k=0; k <NUM_TASKS; k++) {
 		req = (struct ClientRequest *) malloc(sizeof(struct ClientRequest));
-
-      		/* espera la llegada de una peticion */
+    
+		/* espera la llegada de una peticion */
 		/* ARRIVAL_RATE peticiones por segundo, lamda = ARRIVAL_RATE5 */
-      		t_arrival = exponential((double)ARRIVAL_RATE);
-      		MSG_process_sleep(t_arrival);
+		t_arrival = exponential((double)ARRIVAL_RATE);
+		MSG_process_sleep(t_arrival);
 
-      		/* crea la tarea */
-      		sprintf(sprintf_buffer, "Task_%d", k);
-      		req->t_arrival = MSG_get_clock();                  // tiempo de llegada
+    /* crea la tarea */
+		sprintf(sprintf_buffer, "Task_%d", k);
 
-		// tiempo de servicio asignada a la tarea
-                // t medio de servicio = 1/SERVICE_RATE de seg
-                // Como base se toma que en 1 seg se encutan MFLOPS_BASE flops
+		// tiempo de llegada de la tarea
+		req->t_arrival = MSG_get_clock();
+
+		// tiempo de servicio asignada a la tarea = 1/SERVICE_RATE de seg
+		// Como base se toma que en 1 seg se encutan MFLOPS_BASE flops
 		t = exponential((double)SERVICE_RATE);
 
-                req->t_service = MFLOPS_BASE * t;  // calculo del tiempo de servicio en funcion
-						   // de la velocidad del host del servidor
+		// calculo del tiempo de servicio en funcion
+		// de la velocidad del host del servidor
+		req->t_service = MFLOPS_BASE * t;
+
 		req->n_task = k;
 		task_comp_size = req->t_service;
-                task_comm_size = 0;
+		task_comm_size = 0;
 
-      		task = MSG_task_create(sprintf_buffer, task_comp_size, task_comm_size,NULL);
+    task = MSG_task_create(sprintf_buffer, task_comp_size, task_comm_size,NULL);
 
 		// asigna datos a la tarea
-      		MSG_task_set_data(task, (void *) req );
+    MSG_task_set_data(task, (void *) req );
 
-		// Código para el algotirmo de distribución
+		// Código para el algoritmo de distribución
 		
 		// ahora se la envía a un único dispather
 		sprintf(mailbox, "d-%d", 0);
@@ -116,18 +121,19 @@ int client(int argc, char *argv[])
 		MSG_task_send(task, mailbox);   
 	}
 
-    	/* finalizar */
-  	return 0;
+  /* finalizar */
+  return 0;
 }                               
 
-
-// dispatcher function, recibe las peticiones de los clientes y las envía a los servidores
+/**
+ * Dispatcher function, recibe las peticiones de los clientes y las envía a los servidores
+*/
 int dispatcher(int argc, char *argv[])
 {
 	int res;
-        struct ClientRequest *req;
-        msg_task_t task = NULL;
-        msg_task_t new_task = NULL;
+  struct ClientRequest *req;
+  msg_task_t task = NULL;
+  msg_task_t new_task = NULL;
 	int my_d;
 	char mailbox[64];
 	int k = 0;
@@ -136,44 +142,42 @@ int dispatcher(int argc, char *argv[])
 	my_d = atoi(argv[0]);
 	MSG_mailbox_set_async("d-0");   //mailbox asincrono
 
-
 	int r =0;
-
 	while (1) {
-                res = MSG_task_receive_with_timeout(&(task), MSG_host_get_name(MSG_host_self()) , MAX_TIMEOUT_SERVER);
+    res = MSG_task_receive_with_timeout(&(task), MSG_host_get_name(MSG_host_self()) , MAX_TIMEOUT_SERVER);
 
-                if (res != MSG_OK)
-                        break;
+    if (res != MSG_OK)
+			break;
 
-                req = MSG_task_get_data(task);
+    req = MSG_task_get_data(task);
 
 		// copia la tarea en otra
-	        new_task = MSG_task_create(MSG_task_get_name(task),
-						MSG_task_get_flops_amount(task), 0, NULL);
+	  new_task = MSG_task_create(MSG_task_get_name(task),
+		MSG_task_get_flops_amount(task), 0, NULL);
 
-                MSG_task_set_data(new_task, (void *) req );	
+    MSG_task_set_data(new_task, (void *) req );	
 
-                MSG_task_destroy(task);
-                task = NULL;
+    MSG_task_destroy(task);
+    task = NULL;
 
 
 		////////////////////////////////////////////////////////////
 		// ahora viene el algoritmo concreto del dispatcher	
-		// para el algoritmo aleatorio se puede utilizar la función uniform_int definida en rand.c
-		// para el algoritmo SQF se puede consultar directamente el array Nsystem que almacena
+		// TODO: para el algoritmo aleatorio se puede utilizar la función uniform_int definida en rand.c
+		
+
+
+		// TODO: para el algoritmo SQF se puede consultar directamente el array Nsystem que almacena
 		// el número de elementos en cada uno de los servidores. Se trata de buscar el servidor con 
 		// el menor numero de elementos en la cola.
 
 		// ahora solo se envian los trabajos al servidor 0
-		s = 0;  // servidor 0
+		s = 0;
 
-
-                sprintf(mailbox, "s-%d", s);
-
-                MSG_task_send(new_task, mailbox);
-
+    sprintf(mailbox, "s-%d", s);
+    MSG_task_send(new_task, mailbox);
 		k++;
-        }
+  }
 	return 0;
 }
 
@@ -287,17 +291,20 @@ int dispatcherServer(int argc, char *argv[])
 
 }
 
+/**
+ * Received the file with the cluster configuration need to run the tests
+*/
 void test_all(char *file)
 {
 	int argc;
-        char str[50];
-        int i;
-        msg_process_t p;
+	char str[50];
+	int i;
+	msg_process_t p;
 
-  	MSG_create_environment(file);
+  MSG_create_environment(file);
 
 	// el proceso client es el que genera las peticiones
-  	MSG_function_register("client", client);
+  MSG_function_register("client", client);
 
 	// el proceso dispatcher es el que distribuye las peticiones que le llegan a los servidores
   	MSG_function_register("dispatcher", dispatcher);
@@ -380,7 +387,7 @@ int main(int argc, char *argv[])
 	printf(argv[0]);
 	printf(argv[1]);
 	printf(argv[2]);
-	
+
   msg_error_t res = MSG_OK;
 	int i;
 
@@ -399,33 +406,33 @@ int main(int argc, char *argv[])
 	MSG_init(&argc, argv);
 
 	for (i = 0; i < NUM_SERVERS; i++) {
-		Nqueue[i] =0;
-		Nsystem[i] =0;
-		EmptyQueue[i]=0;
-  		mutex[i] = sg_mutex_init();
-  		cond[i] = sg_cond_init();
+		Nqueue[i] = 0;
+		Nsystem[i] = 0;
+		EmptyQueue[i]= 0;
+  	mutex[i] = sg_mutex_init();
+  	cond[i] = sg_cond_init();
 		client_requests[i] = xbt_dynar_new(sizeof(struct ClientRequest *), NULL);
 	}
 
 	test_all(argv[1]);
 
-  	res = MSG_main();
+  res = MSG_main();
 	
-        for (i = 0; i < NUM_TASKS; i++){
-                t_medio_servicio = t_medio_servicio + tiempoMedioServicio[i];
-        }
+	for (i = 0; i < NUM_TASKS; i++){
+					t_medio_servicio = t_medio_servicio + tiempoMedioServicio[i];
+	}
 
-        for (i = 0; i < NUM_SERVERS; i++){
-                q_medio = q_medio + Navgqueue[i];
-                n_medio = n_medio + Navgsystem[i];
-        }
+	for (i = 0; i < NUM_SERVERS; i++){
+					q_medio = q_medio + Navgqueue[i];
+					n_medio = n_medio + Navgsystem[i];
+	}
 
-        t_medio_servicio = t_medio_servicio / (NUM_TASKS);
-        q_medio = q_medio / (NUM_SERVERS);
-        n_medio = n_medio / (NUM_SERVERS);
+	t_medio_servicio = t_medio_servicio / (NUM_TASKS);
+	q_medio = q_medio / (NUM_SERVERS);
+	n_medio = n_medio / (NUM_SERVERS);
 
 	printf("tiempoMedioServicio \t TamañoMediocola \t    TareasMediasEnElSistema  \t   tareas\n");
-        printf("%g \t\t\t %g \t\t\t  %g  \t\t\t  %d \n", t_medio_servicio, q_medio,  n_medio, NUM_TASKS );
+	printf("%g \t\t\t %g \t\t\t  %g  \t\t\t  %d \n", t_medio_servicio, q_medio,  n_medio, NUM_TASKS );
 
 	//printf("Simulation time %g\n", MSG_get_clock());
 
@@ -433,8 +440,8 @@ int main(int argc, char *argv[])
 		xbt_dynar_free(&client_requests[i]);
 	}
 
-  	if (res == MSG_OK)
-    		return 0;
-  	else
-    		return 1;
+	if (res == MSG_OK)
+			return 0;
+	else
+			return 1;
 }
