@@ -376,22 +376,27 @@ void test_all(char *file)
 */
 int main(int argc, char *argv[])
 {
+
+	printf(argv[0]);
+	printf(argv[1]);
+	printf(argv[2]);
+	
   msg_error_t res = MSG_OK;
 	int i;
 
-	double t_medio_servicio = 0.0;		// tiempo medio de servicio de cada tarea
-        double q_medio = 0.0; 			// tamaño medio de la cola (esperando a ser servidos)
-        double n_medio = 0.0;			// número medio de tareas en el sistema (esperando y ejecutando)
+	double t_medio_servicio = 0.0;	// tiempo medio de servicio de cada tarea
+	double q_medio = 0.0; 					// tamaño medio de la cola (esperando a ser servidos)
+  double n_medio = 0.0;						// número medio de tareas en el sistema (esperando y ejecutando)
 
-	 if (argc < 3) {
-                printf("Usage: %s platform_file lamda \n", argv[0]);
-                exit(1);
-        }
+	if (argc < 3) {
+		printf("Usage: %s platform_file lamda \n", argv[0]);
+		exit(1);
+	}
 
-        seed((int) time(NULL));
-        ARRIVAL_RATE = atof(argv[2]) *  NUM_SERVERS;
+	seed((int) time(NULL));
+	ARRIVAL_RATE = atof(argv[2]) *  NUM_SERVERS;
 
-  	MSG_init(&argc, argv);
+	MSG_init(&argc, argv);
 
 	for (i = 0; i < NUM_SERVERS; i++) {
 		Nqueue[i] =0;

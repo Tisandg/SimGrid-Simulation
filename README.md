@@ -3,6 +3,13 @@
 ## Description
 Simulation created using SimGrid v3.2
 
+## Compilation
+`gcc -o ejemplo ejemplo.c`
+
+## Execution
+Run the following command
+`ejemplo platform_cluster.xml 0.9`
+
 ## Table of Contents
 - [Installation](#installation)
 - [Usage](#usage)
