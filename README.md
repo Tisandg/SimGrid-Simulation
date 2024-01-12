@@ -4,11 +4,12 @@
 Simulation created using SimGrid v3.2
 
 ## Compilation
-`gcc -o ejemplo ejemplo.c`
+Check the path in the Makefile. Then execute the command `make`
 
 ## Execution
 Run the following command
 `ejemplo platform_cluster.xml 0.9`
+`./ejemplo platform_cluster.xml 0.9`
 
 ## Table of Contents
 - [Installation](#installation)

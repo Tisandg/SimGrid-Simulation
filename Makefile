@@ -1,7 +1,8 @@
 BIN_FILES  =  ejemplo
 
-#cambiar el PATH
-INSTALL_PATH = $(HOME)/simgrid-3.32
+#cambiar el PATH por la ruta donde quedo instalado simgrid
+#INSTALL_PATH = $(HOME)/simgrid-3.32
+INSTALL_PATH = /installed/
 
 CC = gcc
 

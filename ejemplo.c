@@ -164,7 +164,7 @@ int dispatcher(int argc, char *argv[])
 		////////////////////////////////////////////////////////////
 		// ahora viene el algoritmo concreto del dispatcher	
 		// TODO: para el algoritmo aleatorio se puede utilizar la función uniform_int definida en rand.c
-		
+
 
 
 		// TODO: para el algoritmo SQF se puede consultar directamente el array Nsystem que almacena
@@ -307,7 +307,7 @@ void test_all(char *file)
   MSG_function_register("client", client);
 
 	// el proceso dispatcher es el que distribuye las peticiones que le llegan a los servidores
-  	MSG_function_register("dispatcher", dispatcher);
+  MSG_function_register("dispatcher", dispatcher);
 
 	// cada servidor tiene un proceso server que recibe las peticiones: server
 	// y un proceso dispatcher que las ejecuta
