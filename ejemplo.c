@@ -209,10 +209,10 @@ int dispatcher(int argc, char *argv[])
 /** server function  */
 int server(int argc, char *argv[])
 {
-  	msg_task_t task = NULL;
-  	msg_task_t t = NULL;
-  	struct ClientRequest *req;
-  	int res;
+  msg_task_t task = NULL;
+  msg_task_t t = NULL;
+  struct ClientRequest *req;
+  int res;
 	int my_s;
 	char buf[64];
 	
@@ -220,39 +220,51 @@ int server(int argc, char *argv[])
 	sprintf(buf, "s-%d", my_s);
 	MSG_mailbox_set_async(buf);   //mailbox asincrono
 
-  	while (1) {
-    		res = MSG_task_receive_with_timeout(&(task), MSG_host_get_name(MSG_host_self()) , MAX_TIMEOUT_SERVER);
+  while (1) {
+    res = MSG_task_receive_with_timeout(&(task), MSG_host_get_name(MSG_host_self()) , MAX_TIMEOUT_SERVER);
 
 		if (res != MSG_OK)
 			break;
 
 		req = MSG_task_get_data(task);
-		
+			
 		// inserta la petición en la cola
-    		sg_mutex_lock(mutex[my_s]);
-    		Nqueue[my_s]++;   // un elemento mas en la cola 
-    		Nsystem[my_s]++;  // un elemento mas en el sistema 
+		sg_mutex_lock(mutex[my_s]);
+		Nqueue[my_s]++;   // un elemento mas en la cola 
+		Nsystem[my_s]++;  // un elemento mas en el sistema 
 
-		// se inserta la tarea en orden FCFS
+		/**
+		 * Politica de planificación FCFS
+		 * se inserta la tarea en orden en que llega
+		 * no es necesario ordenar la cola
+		*/
+		
 		// Con otras políticas, habrá que ordenar después la cola utilizando
 		// xbt_dynar_sort
 		xbt_dynar_push(client_requests[my_s], (const char *)&req);
 
+		/**
+		 * Politica de planificación SJF
+		 * se inserta la tarea en orden de menor a mayor tiempo de servicio
+		 * es necesario ordenar la cola
+		*/
+		xbt_dynar_sort(client_requests[my_s], sort_function);
+
 
 		sg_cond_notify_one(cond[my_s]);  // despierta al proceso server
-    		sg_mutex_unlock(mutex[my_s]);
+		sg_mutex_unlock(mutex[my_s]);
 
-    		MSG_task_destroy(task);
-    		task = NULL;
+		MSG_task_destroy(task);
+		task = NULL;
 	}  
 
 	// marca el fin
  	sg_mutex_lock(mutex[my_s]);
 	EmptyQueue[my_s] = 1;
 	sg_cond_notify_all(cond[my_s]);
-    	sg_mutex_unlock(mutex[my_s]);
+	sg_mutex_unlock(mutex[my_s]);
 
-  	return 0;
+	return 0;
 }       
 
 
