@@ -160,19 +160,43 @@ int dispatcher(int argc, char *argv[])
     MSG_task_destroy(task);
     task = NULL;
 
+		// ahora solo se envian los trabajos al servidor 0
+		s = 0;
 
 		////////////////////////////////////////////////////////////
 		// ahora viene el algoritmo concreto del dispatcher	
-		// TODO: para el algoritmo aleatorio se puede utilizar la función uniform_int definida en rand.c
 
+		/**
+		 * ALGORITMOS DE DISTRIBUCIÓN ALEATORIA
+		 * Para el algoritmo aleatorio se puede utilizar la función uniform_int definida en rand.c
+		 * para generar un número aleatorio entre 0 y NUM_SERVERS-1
+		*/
+		// s = uniform_int(0, NUM_SERVERS-1);
+		// printf("s = %d\n", s);
 
+		/**
+		 * ALGORITMO DE DISTRIBUCIÓN SQF
+		 * para el algoritmo SQF se puede consultar directamente el array Nsystem que almacena
+		 * el número de elementos en cada uno de los servidores. Se trata de buscar el servidor con 
+		 * el menor numero de elementos en la cola.
+		*/
+		// for(r = 1; r < NUM_SERVERS; r++){
+		// 	if(Nsystem[r] < Nsystem[s] && Nqueue[r] < Nqueue[s]){
+		// 		s = r;
+		// 	}
+		// }
 
-		// TODO: para el algoritmo SQF se puede consultar directamente el array Nsystem que almacena
-		// el número de elementos en cada uno de los servidores. Se trata de buscar el servidor con 
-		// el menor numero de elementos en la cola.
-
-		// ahora solo se envian los trabajos al servidor 0
-		s = 0;
+		/**
+		 * ALGORITMO DE TWO RANDOM CHOICES
+		 * para el algoritmo de two random choices se puede utilizar la función uniform_int definida en rand.c
+		*/
+		int r1 = uniform_int(0, NUM_SERVERS-1);
+		int r2 = uniform_int(0, NUM_SERVERS-1);
+		if(Nsystem[r1] < Nsystem[r2]){
+			s = r1;
+		}else{
+			s = r2;
+		}
 
     sprintf(mailbox, "s-%d", s);
     MSG_task_send(new_task, mailbox);
