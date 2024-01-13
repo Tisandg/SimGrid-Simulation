@@ -32,6 +32,16 @@ sg_mutex_t mutex[NUM_SERVERS];
 sg_cond_t  cond[NUM_SERVERS];
 int 	EmptyQueue[NUM_SERVERS];	// indicacion de fin de cola en cada servidor
 
+const int FCFS = 0;
+const int SJF = 1;
+const int LJF = 2;
+
+const int RANDOM = 0;
+const int CICLICA = 1;
+const int SHORTEST_QUEUE_FIRST = 2;
+const int TWO_RANDOM_CHOICES = 3;
+const int TWO_RR_RANDOM_CHOICES = 4;
+
 
 // variables para estadísticas
 int 	Nqueue[NUM_SERVERS];          	// elementos en la cola de cada servidor esperando a ser servidos
@@ -49,6 +59,8 @@ struct ClientRequest {
 	double t_arrival;   /* momento en el que llega la tarea (tiempo de creacion)*/
 	double t_service;   /* tiempo de servicio asignado en FLOPS*/
 };
+
+
 
 
 // ordena dos elementos de tipo struct ClientRequest
@@ -165,10 +177,17 @@ int dispatcher(int argc, char *argv[])
 	int k = 0;
 	int s = 0;
 
+	int server_a, server_b;
+	int r1, r2;
+
 	my_d = atoi(argv[0]);
 	MSG_mailbox_set_async("d-0");   //mailbox asincrono
 
 	int r =0;
+	// int algoritmo_distribucion = atoi(argv[1]);
+	int algoritmo_distribucion = RANDOM;
+	// printf("algoritmo_distribucion dispatcher = %d\n", algoritmo_distribucion);
+	
 	while (1) {
     res = MSG_task_receive_with_timeout(&(task), MSG_host_get_name(MSG_host_self()) , MAX_TIMEOUT_SERVER);
 
@@ -192,56 +211,71 @@ int dispatcher(int argc, char *argv[])
 		////////////////////////////////////////////////////////////
 		// ahora viene el algoritmo concreto del dispatcher	
 
-		/**
-		 * ALGORITMOS DE DISTRIBUCIÓN ALEATORIA
-		 * Para el algoritmo aleatorio se puede utilizar la función uniform_int definida en rand.c
-		 * para generar un número aleatorio entre 0 y NUM_SERVERS-1
-		*/
-		// s = uniform_int(0, NUM_SERVERS-1);
-		// printf("s = %d\n", s);
+		switch (algoritmo_distribucion)
+		{
+			case 0:
+				/**
+				 * ALGORITMOS DE DISTRIBUCIÓN ALEATORIA
+				 * Para el algoritmo aleatorio se puede utilizar la función uniform_int definida en rand.c
+				 * para generar un número aleatorio entre 0 y NUM_SERVERS-1
+				*/
+				s = uniform_int(0, NUM_SERVERS-1);
+				printf("s = %d\n", s);
+				break;
 
-		/**
-		 * ALGORITMOS DE DISTRIBUCIÓN CICLICA
-		 * Las tareas se van asignando en orden ciclico
-		*/
-		//s = k % NUM_SERVERS;
+			case 1:
+				/**
+				 * ALGORITMOS DE DISTRIBUCIÓN CICLICA
+				 * Las tareas se van asignando en orden ciclico
+				*/
+				s = k % NUM_SERVERS;
+				break;
 
-		/**
-		 * ALGORITMO DE DISTRIBUCIÓN SQF
-		 * para el algoritmo SQF se puede consultar directamente el array Nsystem que almacena
-		 * el número de elementos en cada uno de los servidores. Se trata de buscar el servidor con 
-		 * el menor numero de elementos en la cola.
-		*/
-		// for(r = 1; r < NUM_SERVERS; r++){
-		// 	if(Nsystem[r] < Nsystem[s] && Nqueue[r] < Nqueue[s]){
-		// 		s = r;
-		// 	}
-		// }
+			case 2:
+				/**
+				 * ALGORITMO DE DISTRIBUCIÓN SQF
+				 * para el algoritmo SQF se puede consultar directamente el array Nsystem que almacena
+				 * el número de elementos en cada uno de los servidores. Se trata de buscar el servidor con 
+				 * el menor numero de elementos en la cola.
+				*/
+				for(r = 1; r < NUM_SERVERS; r++){
+					if(Nsystem[r] < Nsystem[s] && Nqueue[r] < Nqueue[s]){
+						s = r;
+					}
+				}
+				break;
 
-		/**
-		 * ALGORITMO DE TWO RANDOM CHOICES
-		 * para el algoritmo de two random choices se puede utilizar la función uniform_int definida en rand.c
-		*/
-		// int r1 = uniform_int(0, NUM_SERVERS-1);
-		// int r2 = uniform_int(0, NUM_SERVERS-1);
-		// if(Nsystem[r1] < Nsystem[r2]){
-		// 	s = r1;
-		// }else{
-		// 	s = r2;
-		// }
+			case 3:
+				/**
+				 * ALGORITMO DE TWO RANDOM CHOICES
+				 * para el algoritmo de two random choices se puede utilizar la función uniform_int definida en rand.c
+				*/
+				r1 = uniform_int(0, NUM_SERVERS-1);
+				r2 = uniform_int(0, NUM_SERVERS-1);
+				if(Nsystem[r1] < Nsystem[r2]){
+					s = r1;
+				}else{
+					s = r2;
+				}
+				break;
 
-		/**
-		 * ALGORITMO DE DISTRIBUCIÓN TWO-RR-RANDOM-CHOICES
-		 * 
-		*/
-		// int server_a = k % NUM_SERVERS;
-		// int server_b = uniform_int(0, NUM_SERVERS-1);
-		// if(Nsystem[server_a] < Nsystem[server_b]){
-		// 	s = server_a;
-		// }else{
-		// 	s = server_b;
-		// }
-
+		case 4:
+			/**
+			 * ALGORITMO DE DISTRIBUCIÓN TWO-RR-RANDOM-CHOICES
+			*/
+			server_a = k % NUM_SERVERS;
+			server_b = uniform_int(0, NUM_SERVERS-1);
+			if(Nsystem[server_a] < Nsystem[server_b]){
+				s = server_a;
+			}else{
+				s = server_b;
+			}
+			break;
+		
+		default:
+			printf("Error en el algoritmo de distribución\n");
+			break;
+		}
 
     sprintf(mailbox, "s-%d", s);
     MSG_task_send(new_task, mailbox);
@@ -260,8 +294,16 @@ int server(int argc, char *argv[])
   int res;
 	int my_server;
 	char buf[64];
+	int algoritmo_planificacion = FCFS;
 	
 	my_server = atoi(argv[0]);
+	// printf("\nSize of argv: %lu\n", sizeof(argv));
+
+	// algoritmo_planificacion = atoi(argv[1]);
+	// algoritmo_planificacion = 0;
+	printf("algoritmo_planificacion: %d", algoritmo_planificacion);
+	// printf("algoritmo_planificacion server = %d\n", algoritmo_planificacion);
+
 	sprintf(buf, "s-%d", my_server);
 	MSG_mailbox_set_async(buf);   //mailbox asincrono
 
@@ -278,29 +320,41 @@ int server(int argc, char *argv[])
 		Nqueue[my_server]++;   // un elemento mas en la cola 
 		Nsystem[my_server]++;  // un elemento mas en el sistema 
 
-		/**
-		 * Politica de planificación FCFS
-		 * se inserta la tarea en orden en que llega
-		 * no es necesario ordenar la cola
-		*/
-		
 		// Con otras políticas, habrá que ordenar después la cola utilizando
 		// xbt_dynar_sort
 		xbt_dynar_push(client_requests[my_server], (const char *)&req);
+		switch (algoritmo_planificacion)
+		{
+			case 0:
+				/**
+				 * Politica de planificación FCFS
+				 * se inserta la tarea en orden en que llega
+				 * no es necesario ordenar la cola
+				*/
+				break;
 
-		/**
-		 * Politica de planificación SJF
-		 * se inserta la tarea en orden de menor a mayor tiempo de servicio
-		*/
-		xbt_dynar_sort(client_requests[my_server], sort_function_asc);
+			case 1:
+				/**
+				 * Politica de planificación SJF
+				 * se inserta la tarea en orden de menor a mayor tiempo de servicio
+				*/
+				xbt_dynar_sort(client_requests[my_server], sort_function_asc);
+				break;
 
-		/**
-		 * Politica de planificación LJF
-		 * se inserta la tarea en orden de mayor a menor tiempo de servicio
-		*/
-		xbt_dynar_sort(client_requests[my_server], sort_function_desc);
-
-
+			
+			case 2:
+				/**
+				 * Politica de planificación LJF
+				 * se inserta la tarea en orden de mayor a menor tiempo de servicio
+				*/
+				xbt_dynar_sort(client_requests[my_server], sort_function_desc);
+				break;
+		
+			default:
+				printf("Error en el algoritmo de planificación\n");
+			break;
+		}
+		
 		sg_cond_notify_one(cond[my_server]);  // despierta al proceso server
 		sg_mutex_unlock(mutex[my_server]);
 
@@ -397,23 +451,28 @@ void test_all(char *file)
 
 	// cada servidor tiene un proceso server que recibe las peticiones: server
 	// y un proceso dispatcher que las ejecuta
-  	MSG_function_register("server", server);
-  	MSG_function_register("dispatcherServer", dispatcherServer);
+	MSG_function_register("server", server);
+	MSG_function_register("dispatcherServer", dispatcherServer);
 
 	for (i=0; i < NUM_SERVERS; i++) {
-                sprintf(str,"s-%d", i);
-                argc = 1;
-                char **argvc=xbt_new(char*,2);
+		sprintf(str,"s-%d", i);
+		argc = 1;
+		char **argvc=xbt_new(char*,2);
 
-                argvc[0] = bprintf("%d",i);
-                argvc[1] = NULL;
+		argvc[0] = bprintf("%d",i);
+		//To define the algorithm of distribution
+		argvc[1] = bprintf("%d",0);
+		// argvc[1] = NULL;uuuuiu8
 
-                p = MSG_process_create_with_arguments(str, server, NULL, MSG_get_host_by_name(str), argc, argvc);
-                if (p == NULL) {
-                        printf("Error en ......... %d\n", i);
-                        exit(0);
-                }
-        }
+		// printf("argvc[0] = %s\n", argvc[0]);
+		// printf("argvc[1] = %s\n", argvc[1]);
+
+		p = MSG_process_create_with_arguments(str, server, NULL, MSG_get_host_by_name(str), argc, argvc);
+		if (p == NULL) {
+						printf("Error en ......... %d\n", i);
+						exit(0);
+		}
+	}
 
         for (i=0; i < NUM_SERVERS; i++) {
                 sprintf(str,"s-%d", i);
@@ -451,7 +510,9 @@ void test_all(char *file)
                 char **argvc=xbt_new(char*,2);
 
                 argvc[0] = bprintf("%d",i);
-                argvc[1] = NULL;
+								//To define the algorithm of distribution
+								argvc[1] = bprintf("%d",0);
+								// argvc[1] = NULL;
 
                 p = MSG_process_create_with_arguments(str, dispatcher, NULL, MSG_get_host_by_name(str), argc, argvc);
                 if (p == NULL) {
