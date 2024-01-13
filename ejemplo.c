@@ -22,7 +22,12 @@ double ARRIVAL_RATE;		// tasa de llegada, como argumento del programa
 const long MAX_TIMEOUT_SERVER=(86400*10); //Timeout= 10 días sin actividad
 
 // variables para gestionar la cola de tareas en cada servidor
-xbt_dynar_t client_requests[NUM_SERVERS] ;   // cola de peticiones en cada servidor, array dinamico de SimGrid
+
+// cola de peticiones en cada servidor, array dinamico de SimGrid
+// Cada componente del vector representa la cola de tareas de cada servidor
+xbt_dynar_t client_requests[NUM_SERVERS];
+
+
 sg_mutex_t mutex[NUM_SERVERS];
 sg_cond_t  cond[NUM_SERVERS];
 int 	EmptyQueue[NUM_SERVERS];	// indicacion de fin de cola en cada servidor
@@ -48,7 +53,7 @@ struct ClientRequest {
 
 // ordena dos elementos de tipo struct ClientRequest
 // utilizado para poder ordenar la colaisutilizando la fucion xbt__dynar_sort
-static int sort_function(const void *e1, const void *e2)
+static int sort_function_asc(const void *e1, const void *e2)
 {
 	struct ClientRequest *c1 = *(void **) e1;
 	struct ClientRequest *c2 = *(void **) e2;
@@ -56,10 +61,31 @@ static int sort_function(const void *e1, const void *e2)
 	if (c1->t_service == c2->t_service)
 		return 0;
 
-	else    if (c1->t_service < c2->t_service)
+	else if (c1->t_service < c2->t_service)
 		return -1;
 	else
+		// if it returns a positive value when the first argument is greater than the second,
+		// then xbt_dynar_sort will sort the array in ascending order
+		//Here c1 > c2
 		return 1;
+}
+
+// ordena dos elementos de tipo struct ClientRequest
+// utilizado para poder ordenar la colaisutilizando la fucion xbt__dynar_sort
+static int sort_function_desc(const void *e1, const void *e2)
+{
+	struct ClientRequest *c1 = *(void **) e1;
+	struct ClientRequest *c2 = *(void **) e2;
+
+	if (c1->t_service == c2->t_service)
+		return 0;
+
+	// If the comparison function returns a positive value when the first argument 
+	// is less than the second, then xbt_dynar_sort will sort the array in descending order.
+	else if (c1->t_service < c2->t_service)
+		return 1;
+	else
+		return -1;
 }
 
 
@@ -175,6 +201,12 @@ int dispatcher(int argc, char *argv[])
 		// printf("s = %d\n", s);
 
 		/**
+		 * ALGORITMOS DE DISTRIBUCIÓN CICLICA
+		 * Las tareas se van asignando en orden ciclico
+		*/
+		//s = k % NUM_SERVERS;
+
+		/**
 		 * ALGORITMO DE DISTRIBUCIÓN SQF
 		 * para el algoritmo SQF se puede consultar directamente el array Nsystem que almacena
 		 * el número de elementos en cada uno de los servidores. Se trata de buscar el servidor con 
@@ -190,13 +222,26 @@ int dispatcher(int argc, char *argv[])
 		 * ALGORITMO DE TWO RANDOM CHOICES
 		 * para el algoritmo de two random choices se puede utilizar la función uniform_int definida en rand.c
 		*/
-		int r1 = uniform_int(0, NUM_SERVERS-1);
-		int r2 = uniform_int(0, NUM_SERVERS-1);
-		if(Nsystem[r1] < Nsystem[r2]){
-			s = r1;
-		}else{
-			s = r2;
-		}
+		// int r1 = uniform_int(0, NUM_SERVERS-1);
+		// int r2 = uniform_int(0, NUM_SERVERS-1);
+		// if(Nsystem[r1] < Nsystem[r2]){
+		// 	s = r1;
+		// }else{
+		// 	s = r2;
+		// }
+
+		/**
+		 * ALGORITMO DE DISTRIBUCIÓN TWO-RR-RANDOM-CHOICES
+		 * 
+		*/
+		// int server_a = k % NUM_SERVERS;
+		// int server_b = uniform_int(0, NUM_SERVERS-1);
+		// if(Nsystem[server_a] < Nsystem[server_b]){
+		// 	s = server_a;
+		// }else{
+		// 	s = server_b;
+		// }
+
 
     sprintf(mailbox, "s-%d", s);
     MSG_task_send(new_task, mailbox);
@@ -213,11 +258,11 @@ int server(int argc, char *argv[])
   msg_task_t t = NULL;
   struct ClientRequest *req;
   int res;
-	int my_s;
+	int my_server;
 	char buf[64];
 	
-	my_s = atoi(argv[0]);
-	sprintf(buf, "s-%d", my_s);
+	my_server = atoi(argv[0]);
+	sprintf(buf, "s-%d", my_server);
 	MSG_mailbox_set_async(buf);   //mailbox asincrono
 
   while (1) {
@@ -229,9 +274,9 @@ int server(int argc, char *argv[])
 		req = MSG_task_get_data(task);
 			
 		// inserta la petición en la cola
-		sg_mutex_lock(mutex[my_s]);
-		Nqueue[my_s]++;   // un elemento mas en la cola 
-		Nsystem[my_s]++;  // un elemento mas en el sistema 
+		sg_mutex_lock(mutex[my_server]);
+		Nqueue[my_server]++;   // un elemento mas en la cola 
+		Nsystem[my_server]++;  // un elemento mas en el sistema 
 
 		/**
 		 * Politica de planificación FCFS
@@ -241,28 +286,33 @@ int server(int argc, char *argv[])
 		
 		// Con otras políticas, habrá que ordenar después la cola utilizando
 		// xbt_dynar_sort
-		xbt_dynar_push(client_requests[my_s], (const char *)&req);
+		xbt_dynar_push(client_requests[my_server], (const char *)&req);
 
 		/**
 		 * Politica de planificación SJF
 		 * se inserta la tarea en orden de menor a mayor tiempo de servicio
-		 * es necesario ordenar la cola
 		*/
-		xbt_dynar_sort(client_requests[my_s], sort_function);
+		xbt_dynar_sort(client_requests[my_server], sort_function_asc);
+
+		/**
+		 * Politica de planificación LJF
+		 * se inserta la tarea en orden de mayor a menor tiempo de servicio
+		*/
+		xbt_dynar_sort(client_requests[my_server], sort_function_desc);
 
 
-		sg_cond_notify_one(cond[my_s]);  // despierta al proceso server
-		sg_mutex_unlock(mutex[my_s]);
+		sg_cond_notify_one(cond[my_server]);  // despierta al proceso server
+		sg_mutex_unlock(mutex[my_server]);
 
 		MSG_task_destroy(task);
 		task = NULL;
-	}  
+	}
 
 	// marca el fin
- 	sg_mutex_lock(mutex[my_s]);
-	EmptyQueue[my_s] = 1;
-	sg_cond_notify_all(cond[my_s]);
-	sg_mutex_unlock(mutex[my_s]);
+ 	sg_mutex_lock(mutex[my_server]);
+	EmptyQueue[my_server] = 1;
+	sg_cond_notify_all(cond[my_server]);
+	sg_mutex_unlock(mutex[my_server]);
 
 	return 0;
 }       
