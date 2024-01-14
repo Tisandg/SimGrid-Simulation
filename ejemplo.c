@@ -32,15 +32,21 @@ sg_mutex_t mutex[NUM_SERVERS];
 sg_cond_t  cond[NUM_SERVERS];
 int 	EmptyQueue[NUM_SERVERS];	// indicacion de fin de cola en cada servidor
 
+// ALGORITMOS DE PLANIFICACION
 const int FCFS = 0;
 const int SJF = 1;
 const int LJF = 2;
 
+// ALGORITMOS DE DISTRIBUCION
 const int RANDOM = 0;
 const int CICLICA = 1;
 const int SHORTEST_QUEUE_FIRST = 2;
 const int TWO_RANDOM_CHOICES = 3;
 const int TWO_RR_RANDOM_CHOICES = 4;
+
+//DECLARACION DE FUNCIONES
+double calculate_std_dev(double data[], int size, double mean);
+void sort_array(double array[], int size);
 
 
 // variables para estadísticas
@@ -220,7 +226,7 @@ int dispatcher(int argc, char *argv[])
 				 * para generar un número aleatorio entre 0 y NUM_SERVERS-1
 				*/
 				s = uniform_int(0, NUM_SERVERS-1);
-				printf("s = %d\n", s);
+				// printf("s = %d\n", s);
 				break;
 
 			case 1:
@@ -301,7 +307,7 @@ int server(int argc, char *argv[])
 
 	// algoritmo_planificacion = atoi(argv[1]);
 	// algoritmo_planificacion = 0;
-	printf("algoritmo_planificacion: %d", algoritmo_planificacion);
+	// printf("algoritmo_planificacion: %d", algoritmo_planificacion);
 	// printf("algoritmo_planificacion server = %d\n", algoritmo_planificacion);
 
 	sprintf(buf, "s-%d", my_server);
@@ -375,8 +381,9 @@ int server(int argc, char *argv[])
 /** server function  */
 int dispatcherServer(int argc, char *argv[])
 {
+
 	int res;
-  	struct ClientRequest *req;
+  struct ClientRequest *req;
 	msg_task_t task = NULL;
 	msg_task_t ans_task = NULL;
 	double Nqueue_avg = 0.0;
@@ -385,13 +392,12 @@ int dispatcherServer(int argc, char *argv[])
 	int n_tasks = 0;
 	int my_s;
 
-
 	my_s = atoi(argv[0]);
 
 	while (1) {
-    		sg_mutex_lock(mutex[my_s]);
+    sg_mutex_lock(mutex[my_s]);
 
-		while ((Nqueue[my_s] ==  0)   && (EmptyQueue[my_s] == 0)) {
+		while ((Nqueue[my_s] ==  0) && (EmptyQueue[my_s] == 0)) {
 			sg_cond_wait(cond[my_s], mutex[my_s]);
 		}
 
@@ -399,8 +405,9 @@ int dispatcherServer(int argc, char *argv[])
 			sg_mutex_unlock(mutex[my_s]);
 			break;
 		}
+
 		// extrae un elemento de la cola
-                xbt_dynar_shift(client_requests[my_s], (char *) &req);
+		xbt_dynar_shift(client_requests[my_s], (char *) &req);
 
 		Nqueue[my_s]--;  // un elemento menos en la cola
 
@@ -410,17 +417,16 @@ int dispatcherServer(int argc, char *argv[])
 		Navgqueue[my_s] = (Navgqueue[my_s] * (n_tasks-1) + Nqueue[my_s]) / n_tasks;
 		Navgsystem[my_s] = (Navgsystem[my_s] * (n_tasks-1) + Nsystem[my_s]) / n_tasks;
 
-
-    		sg_mutex_unlock(mutex[my_s]);
+		sg_mutex_unlock(mutex[my_s]);
 
 		// crea una tarea para su ejecución
 		task = MSG_task_create("task", req->t_service, 0, NULL);
 
 		MSG_task_execute(task);
 
-    		sg_mutex_lock(mutex[my_s]);
+		sg_mutex_lock(mutex[my_s]);
 		Nsystem[my_s]--;  // un elemento menos en el sistema
-    		sg_mutex_unlock(mutex[my_s]);
+		sg_mutex_unlock(mutex[my_s]);
 
 		c = MSG_get_clock();  // tiempo de terminacion de la tarea
 		tiempoMedioServicio[req->n_task] = c - (req->t_arrival);
@@ -428,7 +434,6 @@ int dispatcherServer(int argc, char *argv[])
 		free(req);
 		MSG_task_destroy(task);
 	}
-
 }
 
 /**
@@ -474,35 +479,35 @@ void test_all(char *file)
 		}
 	}
 
-        for (i=0; i < NUM_SERVERS; i++) {
-                sprintf(str,"s-%d", i);
-                argc = 1;
-                char **argvc=xbt_new(char*,2);
+	for (i=0; i < NUM_SERVERS; i++) {
+					sprintf(str,"s-%d", i);
+					argc = 1;
+					char **argvc=xbt_new(char*,2);
 
-                argvc[0] = bprintf("%d",i);
-                argvc[1] = NULL;
+					argvc[0] = bprintf("%d",i);
+					argvc[1] = NULL;
 
-                p = MSG_process_create_with_arguments(str, dispatcherServer, NULL, MSG_get_host_by_name(str), argc, argvc);
-                if (p == NULL) {
-                        printf("Error en ......... %d\n", i);
-                        exit(0);
-                }
-        }
+					p = MSG_process_create_with_arguments(str, dispatcherServer, NULL, MSG_get_host_by_name(str), argc, argvc);
+					if (p == NULL) {
+									printf("Error en ......... %d\n", i);
+									exit(0);
+					}
+	}
 
-	 for (i=0; i < NUM_CLIENTS; i++) {
-                sprintf(str,"c-%d", i);
-                argc = 1;
-                char **argvc=xbt_new(char*,2);
+	for (i=0; i < NUM_CLIENTS; i++) {
+							sprintf(str,"c-%d", i);
+							argc = 1;
+							char **argvc=xbt_new(char*,2);
 
-                argvc[0] = bprintf("%d",i);
-                argvc[1] = NULL;
+							argvc[0] = bprintf("%d",i);
+							argvc[1] = NULL;
 
-                p = MSG_process_create_with_arguments(str, client, NULL, MSG_get_host_by_name(str), argc, argvc);
-                if (p == NULL) {
-                        printf("Error en ......... %d\n", i);
-                        exit(0);
-                }
-        }
+							p = MSG_process_create_with_arguments(str, client, NULL, MSG_get_host_by_name(str), argc, argvc);
+							if (p == NULL) {
+											printf("Error en ......... %d\n", i);
+											exit(0);
+							}
+	}
 
 	 for (i=0; i < NUM_DISPATCHERS; i++) {
                 sprintf(str,"d-%d", i);
@@ -524,19 +529,41 @@ void test_all(char *file)
 	return;
 }
 
+void generate_bootstrap_sample(double data[], int size, double bootstrap_sample[], int sample_size) {
+    for (int i = 0; i < sample_size; i++) {
+        int random_index = rand() % size;
+        bootstrap_sample[i] = data[random_index];
+    }
+}
+
+void sort_array(double array[], int size) {
+	int i, j;
+	double temp;
+
+	for (i = 0; i < size - 1; i++) {
+			for (j = 0; j < size - 1 - i; j++) {
+					if (array[j] > array[j + 1]) {
+							// Intercambia los elementos si están en el orden incorrecto
+							temp = array[j];
+							array[j] = array[j + 1];
+							array[j + 1] = temp;
+					}
+			}
+	}
+}
+
 
 /**
  * 		Main function
 */
 int main(int argc, char *argv[])
 {
-
-	printf(argv[0]);
-	printf(argv[1]);
-	printf(argv[2]);
+	printf("argv[0] = %s\n", argv[0]);
+	printf("argv[1] = %s\n", argv[1]);
+	printf("argv[2] = %s\n", argv[2]);
 
   msg_error_t res = MSG_OK;
-	int i;
+	int i, j;
 
 	double t_medio_servicio = 0.0;	// tiempo medio de servicio de cada tarea
 	double q_medio = 0.0; 					// tamaño medio de la cola (esperando a ser servidos)
@@ -556,39 +583,158 @@ int main(int argc, char *argv[])
 		Nqueue[i] = 0;
 		Nsystem[i] = 0;
 		EmptyQueue[i]= 0;
-  	mutex[i] = sg_mutex_init();
-  	cond[i] = sg_cond_init();
+		mutex[i] = sg_mutex_init();
+		cond[i] = sg_cond_init();
 		client_requests[i] = xbt_dynar_new(sizeof(struct ClientRequest *), NULL);
 	}
 
 	test_all(argv[1]);
 
-  res = MSG_main();
-	
+	res = MSG_main();
+
+	int index_temporal;
+	int numero_samples = 1000;
+	double tiempoMedioServicio_samples[numero_samples];
+	double q_medio_samples[numero_samples];
+	double n_medio_samples[numero_samples];
+
+	printf("Valores obtenidos a nivel general\n");
 	for (i = 0; i < NUM_TASKS; i++){
-					t_medio_servicio = t_medio_servicio + tiempoMedioServicio[i];
+		// printf("%g ", tiempoMedioServicio[i]);
+		t_medio_servicio = t_medio_servicio + tiempoMedioServicio[i];
 	}
+	t_medio_servicio = t_medio_servicio / (NUM_TASKS);
 
 	for (i = 0; i < NUM_SERVERS; i++){
-					q_medio = q_medio + Navgqueue[i];
-					n_medio = n_medio + Navgsystem[i];
+		q_medio = q_medio + Navgqueue[i];
+		n_medio = n_medio + Navgsystem[i];
 	}
-
-	t_medio_servicio = t_medio_servicio / (NUM_TASKS);
 	q_medio = q_medio / (NUM_SERVERS);
 	n_medio = n_medio / (NUM_SERVERS);
+	printf("TiempoMedioServicio: %g\n", t_medio_servicio);
+	printf("TamañoMediocola: %g\n", q_medio);
+	printf("TareasMediasEnElSistema: %g\n", n_medio);
+	printf("tareas: %d\n\n", NUM_TASKS);
 
-	printf("tiempoMedioServicio \t TamañoMediocola \t    TareasMediasEnElSistema  \t   tareas\n");
-	printf("%g \t\t\t %g \t\t\t  %g  \t\t\t  %d \n", t_medio_servicio, q_medio,  n_medio, NUM_TASKS );
+	
+	for (int j = 0; j < numero_samples; j++)
+	{
+		t_medio_servicio = 0.0;
+		for (i = 0; i < NUM_TASKS; i++){
+			index_temporal = uniform_int(0, NUM_TASKS-1);
+			// printf("%g ", tiempoMedioServicio[i]);
+			t_medio_servicio = t_medio_servicio + tiempoMedioServicio[index_temporal];
+		}
+		t_medio_servicio = t_medio_servicio / (NUM_TASKS);
+		tiempoMedioServicio_samples[j] = t_medio_servicio;
+	}
+	sort_array(tiempoMedioServicio_samples, numero_samples);
+	// Calcular los percentiles para el intervalo de confianza (por ejemplo, para un intervalo del 95%)
+	double lower_bound = tiempoMedioServicio_samples[(int)(0.025 * numero_samples)];
+	double upper_bound = tiempoMedioServicio_samples[(int)(0.975 * numero_samples)];
+
+	// Calcular el ancho del intervalo de confianza bootstrap
+  double bootstrap_interval_width = upper_bound - lower_bound;
+
+	// Calcular el error cometido (mitad del ancho del intervalo)
+  double error_cometido = bootstrap_interval_width / 2;
+
+	// Imprimir resultados
+	printf("TiempoMedioServicio\n");
+	printf("Intervalo de Confianza Bootstrap: (%g, %g)\n", lower_bound, upper_bound);
+	printf("Ancho del Intervalo Bootstrap: %g\n", bootstrap_interval_width);
+	printf("Error Cometido: %g\n\n", error_cometido);
+	
+	for (int j = 0; j < numero_samples; j++)
+	{
+		q_medio = 0.0;
+		n_medio = 0.0;
+		for (i = 0; i < NUM_SERVERS; i++){
+			index_temporal = uniform_int(0, NUM_SERVERS-1);
+			q_medio = q_medio + Navgqueue[index_temporal];
+			n_medio = n_medio + Navgsystem[index_temporal];
+		}
+		q_medio = q_medio / (NUM_SERVERS);
+		q_medio_samples[j] = q_medio;
+
+		n_medio = n_medio / (NUM_SERVERS);
+		n_medio_samples[j] = n_medio;
+	}
+	sort_array(q_medio_samples, numero_samples);
+	// Calcular los percentiles para el intervalo de confianza (por ejemplo, para un intervalo del 95%)
+	lower_bound = q_medio_samples[(int)(0.025 * numero_samples)];
+	upper_bound = q_medio_samples[(int)(0.975 * numero_samples)];
+
+	// Calcular el ancho del intervalo de confianza bootstrap
+  bootstrap_interval_width = upper_bound - lower_bound;
+
+	// Calcular el error cometido (mitad del ancho del intervalo)
+  error_cometido = bootstrap_interval_width / 2;
+	printf("TamañoMediocola\n");
+	printf("Intervalo de Confianza Bootstrap: (%g, %g)\n", lower_bound, upper_bound);
+	printf("Ancho del Intervalo Bootstrap: %g\n", bootstrap_interval_width);
+	printf("Error Cometido: %g\n\n", error_cometido);
+
+	sort_array(n_medio_samples, numero_samples);
+		// Calcular los percentiles para el intervalo de confianza (por ejemplo, para un intervalo del 95%)
+	lower_bound = n_medio_samples[(int)(0.025 * numero_samples)];
+	upper_bound = n_medio_samples[(int)(0.975 * numero_samples)];
+
+	// Calcular el ancho del intervalo de confianza bootstrap
+  bootstrap_interval_width = upper_bound - lower_bound;
+
+	// Calcular el error cometido (mitad del ancho del intervalo)
+  error_cometido = bootstrap_interval_width / 2;
+	printf("TareasMediasEnElSistema\n");
+	printf("Intervalo de Confianza Bootstrap: (%g, %g)\n", lower_bound, upper_bound);
+	printf("Ancho del Intervalo Bootstrap: %g\n", bootstrap_interval_width);
+	printf("Error Cometido: %g\n\n", error_cometido);
+
+	// t_medio_servicio = t_medio_servicio / (NUM_TASKS);
+	// q_medio = q_medio / (NUM_SERVERS);
+	// n_medio = n_medio / (NUM_SERVERS);
+
+	// double std_dev_t_medio_servicio = calculate_std_dev(tiempoMedioServicio, NUM_TASKS, t_medio_servicio);
+
+	// Calcula el intervalo de confianza del 95%
+	// double lower_bound_t_medio_servicio, upper_bound_t_medio_servicio;
+	// calculate_confidence_interval(std_dev_t_medio_servicio, NUM_TASKS, t_medio_servicio, &lower_bound_t_medio_servicio, &upper_bound_t_medio_servicio);
+
+	// printf("tiempoMedioServicio \t TamañoMediocola \t    TareasMediasEnElSistema  \t   tareas\n");
+	// printf("%g \t\t\t %g \t\t\t  %g  \t\t\t  %d \n", t_medio_servicio, q_medio,  n_medio, NUM_TASKS );
+	// printf("iteracion[%d] t_medio_servicio = %g\n", j, t_medio_servicio);
+	// printf("std_dev_t_medio_servicio = %g\n", std_dev_t_medio_servicio);
+	// printf("lower_bound_t_medio_servicio = %g\n", lower_bound_t_medio_servicio);
+	// printf("upper_bound_t_medio_servicio = %g\n", upper_bound_t_medio_servicio);
+	// double error = (upper_bound_t_medio_servicio - lower_bound_t_medio_servicio) / 2;
+	// printf("error = %g\n", upper_bound_t_medio_servicio);
+
 
 	//printf("Simulation time %g\n", MSG_get_clock());
 
 	for (i = 0; i < NUM_SERVERS; i++) {
 		xbt_dynar_free(&client_requests[i]);
 	}
-
+	
 	if (res == MSG_OK)
 			return 0;
 	else
 			return 1;
+}
+
+// Función para calcular la desviación estándar
+double calculate_std_dev(double data[], int size, double mean) {
+    double sum_squared_diff = 0.0;
+    for (int i = 0; i < size; i++) {
+        sum_squared_diff += pow(data[i] - mean, 2);
+    }
+    return sqrt(sum_squared_diff / size);
+}
+
+// Función para calcular el intervalo de confianza
+void calculate_confidence_interval(double std_dev, int size, double mean, double *lower_bound, double *upper_bound) {
+	double margin_error = 1.96 * (std_dev / sqrt(size));  // 1.96 para un intervalo del 95%
+	// printf("margin_error = %g\n", margin_error);
+	*lower_bound = mean - margin_error;
+	*upper_bound = mean + margin_error;
 }

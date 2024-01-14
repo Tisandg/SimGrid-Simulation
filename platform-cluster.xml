@@ -4,7 +4,6 @@
 
  <AS  id="AS0"  routing="Full">
 
-
 	 <!---  Cluster para los generadores de peticiones clientes -->
 	<cluster id="cluster_0" prefix="c-" suffix=""radical="0-1"
                 speed="4Gf" bw="125GBps" lat="0us" bb_bw="1000000000GBps"
